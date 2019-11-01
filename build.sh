@@ -48,7 +48,7 @@ for arch in ${DOCKER_ARCHS[@]}; do
         sed -i -e "s/__JAVA_HOME__/${arch}/g" Dockerfile.${arch}
         sed -i -e 's/__MAX_HEAP__/1024/g' Dockerfile.${arch}
     fi
-    docker build -f Dockerfile.${arch} -t ${IMAGE_NAME}:latest-${arch} -t ${IMAGE_NAME}:${TEEDY_VERS}-${arch} .
+    docker build -f Dockerfile.${arch} -t ${IMAGE_NAME}:latest-${arch} -t ${IMAGE_NAME}:${TEEDY_VERS}-${arch} . --no-cache
     docker push ${IMAGE_NAME}:latest-${arch}
     docker push ${IMAGE_NAME}:${TEEDY_VERS}-${arch}
 done
@@ -60,14 +60,7 @@ for version in latest $TEEDY_VERS; do
         ALL_TAGS+=${IMAGE_NAME}:${version}-${arch}' '
     done
 
-    # Check if updating existing tags
-    if curl --silent -f -lSL https://hub.docker.com/v2/repositories/${IMAGE_NAME}/tags/${version} > /dev/null; then
-        AMEND="--amend"
-    else
-        AMEND=''
-    fi
-    docker manifest create ${AMEND} ${IMAGE_NAME}:${version} $ALL_TAGS
-    
+    docker manifest create ${IMAGE_NAME}:${version} $ALL_TAGS
     for arch in ${DOCKER_ARCHS[@]}; do
         if [ ${arch} == 'arm32v7' ]; then
             docker manifest annotate ${IMAGE_NAME}:${version} ${IMAGE_NAME}:${version}-${arch} --os linux --arch arm
@@ -76,4 +69,5 @@ for version in latest $TEEDY_VERS; do
         fi
     done
     docker manifest push ${IMAGE_NAME}:${version}
+    rm -r ~/.docker/manifests/docker.io_${IMAGE_NAME/'/'/'_'}-${version}
 done

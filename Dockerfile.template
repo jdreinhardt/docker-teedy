@@ -23,11 +23,7 @@ ENV LC_ALL C.UTF-8
 
 # get files simics/ubuntu
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
-    dpkg-reconfigure -f noninteractive tzdata && \
-    git clone https://github.com/sismics/docker-ubuntu.git && \
-    cp -r docker-ubuntu/etc /etc && \
-    rm -r docker-ubuntu && \
-    echo "for f in \`ls /etc/bashrc.d/*\`; do . \$f; done;" >> ~/.bashrc
+    dpkg-reconfigure -f noninteractive tzdata
 
 ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-__JAVA_HOME__/
 ENV JAVA_OPTS -Duser.timezone=UTC -Dfile.encoding=UTF-8 -Xmx__MAX_HEAP__m
@@ -92,20 +88,24 @@ RUN apt-get update && apt-get install -y -q \
     tesseract-ocr-tur \
     tesseract-ocr-heb && \
     apt-get clean && \
+    apt-get autoremove -y -q && \
+    rm -rf /var/lib/apt/lists/* && \
     mkdir /opt/jetty
 
 # Bring the Jetty folder over from the app builder
 COPY --from=builder /opt/jetty* /opt/jetty/
 
-
-ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64/
-ENV JAVA_OPTS -Duser.timezone=UTC -Dfile.encoding=UTF-8 -Xmx1024m
+ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-__JAVA_HOME__/
+ENV JAVA_OPTS -Duser.timezone=UTC -Dfile.encoding=UTF-8 -Xmx__MAX_HEAP__m
 ENV JETTY_HOME /opt/jetty
 ENV JAVA_OPTIONS -Xmx512m
+
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata && \
     useradd jetty -U -s /bin/false && \
     chown -R jetty:jetty /opt/jetty
+
+VOLUME /data
 WORKDIR /opt/jetty
 EXPOSE 8080
 CMD ["bin/jetty.sh", "run"]
