@@ -1,4 +1,4 @@
-# Teedy for ARM
+# Teedy multi-architecture Docker
 
 Teedy (formerly Sismics Docs) is an open source, lightweight document management system. The source code and project can be found here - [https://github.com/sismics/docs](https://github.com/sismics/docs).
 
