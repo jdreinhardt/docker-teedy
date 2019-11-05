@@ -56,7 +56,7 @@ RUN mvn -Pprod -DskipTests clean install && \
 
 # Set the default command to run when starting the container
 FROM __DOCKER_ARCH__/ubuntu:18.04
-COPY qemu-__MA_ARCH__-static /usr/bin/
+COPY qemu-__MA_CODE__-static /usr/bin/
 
 # Install dependencies
 RUN apt-get update && apt-get install -y -q \
