@@ -105,13 +105,13 @@ for arch in ${DOCKER_ARCHS[@]}; do
     sed -i -e "s/__MA_CODE__/${MA_CODES[$index]}/g" Dockerfile.${arch}
     # Update Java parameters to fit build architecture
     if [ ${arch} == 'arm32v7' ]; then
-        sed -i -e "s/__JAVA_HOME__/armhf/g" Dockerfile.${arch}
+        sed -i -e "s/__SYS_ARCH__/armhf/g" Dockerfile.${arch}
         sed -i -e 's/__MAX_HEAP__/512/g' Dockerfile.${arch}
     elif [ ${arch} == 'arm64v8' ]; then
-        sed -i -e "s/__JAVA_HOME__/arm64/g" Dockerfile.${arch}
+        sed -i -e "s/__SYS_ARCH__/arm64/g" Dockerfile.${arch}
         sed -i -e 's/__MAX_HEAP__/1024/g' Dockerfile.${arch}
     else
-        sed -i -e "s/__JAVA_HOME__/${arch}/g" Dockerfile.${arch}
+        sed -i -e "s/__SYS_ARCH__/${arch}/g" Dockerfile.${arch}
         sed -i -e 's/__MAX_HEAP__/1024/g' Dockerfile.${arch}
     fi
     # Build and push image
@@ -120,6 +120,7 @@ for arch in ${DOCKER_ARCHS[@]}; do
         ALL_TAGS+='-t '${IMAGE_NAME}:${tag}-${arch}' '
     done
     docker build -f Dockerfile.${arch} ${ALL_TAGS} . --no-cache
+    docker rmi $(docker images -q -f dangling=true)
     if [ ${PUSH_BUILDS} == 'true' ]; then
         for tag in ${BUILD_TAGS[@]}; do 
             docker push ${IMAGE_NAME}:${tag}-${arch}
