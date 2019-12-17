@@ -22,14 +22,14 @@ CREATE_MANIFESTS='true'
 
 # Currently supported architectures are amd64, arm32v7, and arm64v8
 DOCKER_ARCHS=(amd64 arm32v7 arm64v8)
-MA_CODES=()
+CPU_ARCHS=()
 BUILD_TAGS=()
 
 for arch in ${DOCKER_ARCHS[@]}; do
     case $arch in
-    amd64     ) MA_CODES+=(x86_64) ;;
-    arm32v7   ) MA_CODES+=(arm)    ;;
-    arm64v8   ) MA_CODES+=(aarch64);;
+    amd64     ) CPU_ARCHS+=(amd64) ;;
+    arm32v7   ) CPU_ARCHS+=(armhf) ;;
+    arm64v8   ) CPU_ARCHS+=(arm64) ;;
     esac
 done
 
@@ -38,7 +38,7 @@ if [ ${BUILD_LATEST} == 'true' ]; then
     if [ ! -z ${LATEST_TAG} ]; then
         BUILD_TAGS+=($LATEST_TAG);
     else   
-        echo -e "##\n## latest build requested, but tag label not set\n##"
+        echo -e "##\n##\e[31;3m ERROR: latest build requested, but tag label not set\e[0m\n##"
         exit 1
     fi
 fi
@@ -46,7 +46,7 @@ if [ ${BUILD_VERS} == 'true' ]; then
     if [ -n ${VERS_TAG} ]; then
         BUILD_TAGS+=($VERS_TAG);
     else   
-        echo -e "##\n## version build requested, but tag label not set\n##"
+        echo -e "##\n##\e[31;3m ERROR: version build requested, but tag label not set\e[0m\n##"
         exit 1
     fi
 fi
@@ -54,7 +54,13 @@ if [ ${BUILD_DATE} == 'true' ]; then
     if [ -n ${DATE_TAG} ]; then
         BUILD_TAGS+=($DATE_TAG);
     else   
-        echo -e "##\n## date build requested, but tag label not set\n##"
+        echo -e "##\n##\e[31;3m ERROR: date build requested, but tag label not set\e[0m\n##"
+        exit 1
+    fi
+fi
+if [ ${CREATE_MANIFESTS} == 'true' ]; then
+    if [ ${PUSH_BUILDS} == 'false' ]; then
+        echo -e "##\n##\e[31;3m ERROR: manifest build requested, but build push is false\e[0m\n##"
         exit 1
     fi
 fi
@@ -81,13 +87,6 @@ for (( i=${PAUSE}; i>=1; i--)) do
     sleep 1
 done
 
-# Download multiarch libraries 
-echo -e "##\n## Downloading multiarch libraries\n##"
-for arch in ${MA_CODES[@]}; do
-    wget -N https://github.com/multiarch/qemu-user-static/releases/latest/download/x86_64_qemu-${arch}-static.tar.gz
-    tar -xvf x86_64_qemu-${arch}-static.tar.gz
-done
-
 # Enable multiarch build support locally
 echo -e "##\n## Enabling multiarch build support for Docker\n##"
 docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
@@ -95,31 +94,19 @@ docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 # Build the requested images
 echo -e "##\n## Starting Docker build\n##"
 for arch in ${DOCKER_ARCHS[@]}; do
-    # Prepare Dockerfile for current architecture
+    # Correlate Docker and CPU architectures for build args
     echo -e "##\n## Now building ${IMAGE_NAME} for ${arch}\n##"
-    cp Dockerfile.template Dockerfile.${arch}
     for index in "${!DOCKER_ARCHS[@]}"; do
-        [[ "${DOCKER_ARCHS[$i]}" = "${arch}" ]] && break
+        [[ "${DOCKER_ARCHS[$index]}" = "${arch}" ]] && break
     done
-    sed -i -e "s/__DOCKER_ARCH__/${arch}/g" Dockerfile.${arch}
-    sed -i -e "s/__MA_CODE__/${MA_CODES[$index]}/g" Dockerfile.${arch}
-    # Update Java parameters to fit build architecture
-    if [ ${arch} == 'arm32v7' ]; then
-        sed -i -e "s/__SYS_ARCH__/armhf/g" Dockerfile.${arch}
-        sed -i -e 's/__MAX_HEAP__/512/g' Dockerfile.${arch}
-    elif [ ${arch} == 'arm64v8' ]; then
-        sed -i -e "s/__SYS_ARCH__/arm64/g" Dockerfile.${arch}
-        sed -i -e 's/__MAX_HEAP__/1024/g' Dockerfile.${arch}
-    else
-        sed -i -e "s/__SYS_ARCH__/${arch}/g" Dockerfile.${arch}
-        sed -i -e 's/__MAX_HEAP__/1024/g' Dockerfile.${arch}
-    fi
+    cpu_arch="${CPU_ARCHS[index]}"
+
     # Build and push image
     ALL_TAGS=''
     for tag in ${BUILD_TAGS[@]}; do
         ALL_TAGS+='-t '${IMAGE_NAME}:${tag}-${arch}' '
     done
-    docker build -f Dockerfile.${arch} ${ALL_TAGS} . --no-cache
+    docker build -f Dockerfile --build-args DOCKER_ARCHITECTURE=${arch} --build-args CPU_ARCHITECTURE=${cpu_arch} ${ALL_TAGS} . --no-cache
     docker rmi $(docker images -q -f dangling=true)
     if [ ${PUSH_BUILDS} == 'true' ]; then
         for tag in ${BUILD_TAGS[@]}; do 

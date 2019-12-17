@@ -1,4 +1,8 @@
-FROM __DOCKER_ARCH__/ubuntu:18.04 AS teedyBuilder
+# Comments...
+
+ARG DOCKER_ARCHITECTURE
+
+FROM ${DOCKER_ARCHITECTURE}/ubuntu:18.04 AS builder
 
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && apt-get install -y -q \
@@ -7,6 +11,7 @@ RUN apt-get update && apt-get install -y -q \
     software-properties-common \
     git \
     wget \
+    xz-utils \
     curl \
     gnupg \
     tzdata \
@@ -25,8 +30,10 @@ ENV LC_ALL C.UTF-8
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata
 
-ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-__SYS_ARCH__/
-ENV JAVA_OPTS -Duser.timezone=UTC -Dfile.encoding=UTF-8 -Xmx__MAX_HEAP__m
+ARG CPU_ARCHITECTURE
+
+ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-${CPU_ARCHITECTURE}/
+ENV JAVA_OPTS -Duser.timezone=UTC -Dfile.encoding=UTF-8 -Xmx1024m
 
 # Download and configure Jetty
 ENV JETTY_VERSION 9.4.12.v20180830
@@ -54,31 +61,25 @@ WORKDIR /tmp/docs
 RUN mvn -Pprod -DskipTests clean install && \
     cp docs-web/target/docs-web-*.war /opt/jetty/webapps/docs.war
 
-# Download ffmpeg
-FROM __DOCKER_ARCH__/ubuntu:18.04 as ffmpegBuilder
-RUN apt-get update && apt-get install -y -q wget xz-utils
-
 # ffmpeg static builds to trim size
 # https://www.johnvansickle.com/ffmpeg/
 # Licensed under GPL v3
 WORKDIR /tmp
 ENV FFMPEG_VERSION 4.2.1
-RUN wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-__SYS_ARCH__-static.tar.xz
-RUN tar -xJf ffmpeg-release-__SYS_ARCH__-static.tar.xz
-RUN cp "/tmp/ffmpeg-${FFMPEG_VERSION}-__SYS_ARCH__-static/ffmpeg" /usr/local/bin
+RUN wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-${CPU_ARCHITECTURE}-static.tar.xz
+RUN tar -xJf ffmpeg-release-${CPU_ARCHITECTURE}-static.tar.xz
+RUN cp "/tmp/ffmpeg-${FFMPEG_VERSION}-${CPU_ARCHITECTURE}-static/ffmpeg" /usr/local/bin
 
 # Assemble the pieces for the final image
-FROM __DOCKER_ARCH__/ubuntu:18.04
-COPY qemu-__MA_CODE__-static /usr/bin/
+FROM ${DOCKER_ARCHITECTURE}/ubuntu:18.04
 
 # Bring the Jetty folder over from the app builder
 # and the static build of ffmpeg
-COPY --from=teedyBuilder /opt/jetty* /opt/jetty/
-COPY --from=ffmpegBuilder /usr/local/bin/ffmpeg /usr/local/bin/
+COPY --from=builder /opt/jetty* /opt/jetty/
+COPY --from=builder /usr/local/bin/ffmpeg /usr/local/bin/
 
 # Install dependencies
 RUN apt-get update && apt-get install -y -q \
-    apt-transport-https \
     openjdk-8-jre-headless \
     unzip \
     mediainfo \
@@ -108,12 +109,13 @@ RUN apt-get update && apt-get install -y -q \
     useradd jetty -U -s /bin/false && \
     chown -R jetty:jetty /opt/jetty
 
-ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-__SYS_ARCH__/
-ENV JAVA_OPTS -Duser.timezone=UTC -Dfile.encoding=UTF-8 -Xmx__MAX_HEAP__m
-ENV JETTY_HOME /opt/jetty
-ENV JAVA_OPTIONS -Xmx512m
+ARG CPU_ARCHITECTURE
 
-VOLUME /data
+ENV MAX_HEAP_SIZE 512m
+ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-${CPU_ARCHITECTURE}/
+ENV JAVA_OPTIONS -Xmx${MAX_HEAP_SIZE}
+
 WORKDIR /opt/jetty
+VOLUME /data
 EXPOSE 8080
 CMD ["bin/jetty.sh", "run"]
