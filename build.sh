@@ -106,7 +106,7 @@ for arch in ${DOCKER_ARCHS[@]}; do
     for tag in ${BUILD_TAGS[@]}; do
         ALL_TAGS+='-t '${IMAGE_NAME}:${tag}-${arch}' '
     done
-    docker build -f Dockerfile --build-args DOCKER_ARCHITECTURE=${arch} --build-args CPU_ARCHITECTURE=${cpu_arch} ${ALL_TAGS} . --no-cache
+    docker build -f Dockerfile --build-arg DOCKER_ARCHITECTURE=${arch} --build-arg CPU_ARCHITECTURE=${cpu_arch} ${ALL_TAGS} . --no-cache
     docker rmi $(docker images -q -f dangling=true)
     if [ ${PUSH_BUILDS} == 'true' ]; then
         for tag in ${BUILD_TAGS[@]}; do 
