@@ -65,9 +65,9 @@ RUN mvn -Pprod -DskipTests clean install && \
 # https://www.johnvansickle.com/ffmpeg/
 # Licensed under GPL v3
 WORKDIR /tmp
-ENV FFMPEG_VERSION 4.2.1
-RUN wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-${CPU_ARCHITECTURE}-static.tar.xz
-RUN tar -xJf ffmpeg-release-${CPU_ARCHITECTURE}-static.tar.xz
+ENV FFMPEG_VERSION 4.2.2
+RUN wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-${FFMPEG_VERSION}-${CPU_ARCHITECTURE}-static.tar.xz
+RUN tar -xJf ffmpeg-${FFMPEG_VERSION}-${CPU_ARCHITECTURE}-static.tar.xz
 RUN cp "/tmp/ffmpeg-${FFMPEG_VERSION}-${CPU_ARCHITECTURE}-static/ffmpeg" /usr/local/bin
 
 # Assemble the pieces for the final image
@@ -102,7 +102,8 @@ RUN apt-get update && apt-get install -y -q \
     tesseract-ocr-chi-tra \
     tesseract-ocr-nld \
     tesseract-ocr-tur \
-    tesseract-ocr-heb && \
+    tesseract-ocr-heb \
+    tesseract-ocr-hun && \
     apt-get clean && \
     apt-get autoremove -y -q && \
     rm -rf /var/lib/apt/lists/* && \
