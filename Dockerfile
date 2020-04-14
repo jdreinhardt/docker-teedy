@@ -2,7 +2,7 @@
 
 ARG DOCKER_ARCHITECTURE
 
-FROM ${DOCKER_ARCHITECTURE}/ubuntu:18.04 AS builder
+FROM ubuntu:18.04 AS builder
 
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && apt-get install -y -q \
@@ -26,13 +26,9 @@ RUN apt-get update && apt-get install -y -q \
 ENV LANG C.UTF-8
 ENV LC_ALL C.UTF-8
 
-# get files simics/ubuntu
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata
 
-ARG CPU_ARCHITECTURE
-
-ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-${CPU_ARCHITECTURE}/
 ENV JAVA_OPTS -Duser.timezone=UTC -Dfile.encoding=UTF-8 -Xmx1024m
 
 # Download and configure Jetty
@@ -64,14 +60,14 @@ RUN mvn -Pprod -DskipTests clean install && \
 # ffmpeg static builds to trim size
 # https://www.johnvansickle.com/ffmpeg/
 # Licensed under GPL v3
+ARG TARGETARCH
 WORKDIR /tmp
-ENV FFMPEG_VERSION 4.2.2
-RUN wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-${FFMPEG_VERSION}-${CPU_ARCHITECTURE}-static.tar.xz
-RUN tar -xJf ffmpeg-${FFMPEG_VERSION}-${CPU_ARCHITECTURE}-static.tar.xz
-RUN cp "/tmp/ffmpeg-${FFMPEG_VERSION}-${CPU_ARCHITECTURE}-static/ffmpeg" /usr/local/bin
+RUN if [ ${TARGETARCH} = arm ]; then wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-armhf-static.tar.xz; else wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-${TARGETARCH}-static.tar.xz; fi
+RUN tar -xJf ffmpeg.tar.xz -C /tmp --strip-components=1
+RUN cp "/tmp/ffmpeg" /usr/local/bin
 
 # Assemble the pieces for the final image
-FROM ${DOCKER_ARCHITECTURE}/ubuntu:18.04
+FROM ubuntu:18.04
 
 # Bring the Jetty folder over from the app builder
 # and the static build of ffmpeg
@@ -103,18 +99,17 @@ RUN apt-get update && apt-get install -y -q \
     tesseract-ocr-nld \
     tesseract-ocr-tur \
     tesseract-ocr-heb \
-    tesseract-ocr-hun && \
+    tesseract-ocr-hun \
+    tesseract-ocr-fin \
+    tesseract-ocr-swe \
+    tesseract-ocr-lav && \
     apt-get clean && \
     apt-get autoremove -y -q && \
     rm -rf /var/lib/apt/lists/* && \
     useradd jetty -U -s /bin/false && \
     chown -R jetty:jetty /opt/jetty
 
-ARG CPU_ARCHITECTURE
-
-ENV MAX_HEAP_SIZE 512m
-ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-${CPU_ARCHITECTURE}/
-ENV JAVA_OPTIONS -Xmx${MAX_HEAP_SIZE}
+ENV JAVA_OPTIONS -Xmx512m
 
 WORKDIR /opt/jetty
 VOLUME /data

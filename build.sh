@@ -1,38 +1,33 @@
 #!/usr/bin/bash
-#
-# +-------------+--------------+-----------------+------------------+
-# | Docker arch |   uname -m   | multi-arch code |       Note       |
-# +-------------+--------------+-----------------+------------------+
-# | amd64       | x86_64       | x86_64          |                  |
-# | arm32v7     | armhf, arm7l | arm             | Raspberry Pis    |
-# | arm64v8     | aarch6       | aarch64         | A53, H3, H5 ARMs |
-# +-------------+--------------+-----------------+------------------+
-# Additional architectures can be found at https://github.com/multiarch/qemu-user-static/releases/latest
 
+# Image Configurations
 IMAGE_NAME="jdreinhardt/teedy"
 LATEST_TAG="latest"
 VERS_TAG="1.8"
 DATE_TAG=$(date +%Y%m%d)
 
+# Enables multi-arch build support in buildx with a builder named xbuilder
+# Set to false if xbuilder already exists with required arch support
+CREATE_BUILDER='false'
+
 BUILD_LATEST='true'
-BUILD_VERS='true'
+BUILD_VERS='false'
 BUILD_DATE='true'
 PUSH_BUILDS='true'
-CREATE_MANIFESTS='true'
 
-# Currently supported architectures are amd64, arm32v7, and arm64v8
-DOCKER_ARCHS=(amd64 arm32v7 arm64v8)
-CPU_ARCHS=()
+# Target Architectures. Current supported architectures:
+# - linux/amd64
+# - linux/386
+# - linux/arm/v7
+# - linux/arm64
+# Coming eventually. (these will require a different source for ffmpeg)
+# - linux/arm/v6
+# - linux/ppc64le
+# - linux/s390x
+# - linux/riscv64
+TARGETARCHS=(linux/amd64 linux/arm/v7 linux/arm64)
+
 BUILD_TAGS=()
-
-for arch in ${DOCKER_ARCHS[@]}; do
-    case $arch in
-    amd64     ) CPU_ARCHS+=(amd64) ;;
-    arm32v7   ) CPU_ARCHS+=(armhf) ;;
-    arm64v8   ) CPU_ARCHS+=(arm64) ;;
-    esac
-done
-
 
 if [ ${BUILD_LATEST} == 'true' ]; then
     if [ ! -z ${LATEST_TAG} ]; then
@@ -58,11 +53,15 @@ if [ ${BUILD_DATE} == 'true' ]; then
         exit 1
     fi
 fi
-if [ ${CREATE_MANIFESTS} == 'true' ]; then
-    if [ ${PUSH_BUILDS} == 'false' ]; then
-        echo -e "##\n##\e[31;3m ERROR: manifest build requested, but build push is false\e[0m\n##"
+if [ ${PUSH_BUILDS} == 'false' ]; then
+    if [ ${#TARGETARCHS[@]} -gt 1 ]; then
+        echo -e "##\n##\e[31;3m ERROR: local build only requested with more than one architecture. Buildx currently only supports single architecture builds for local load\e[0m\n##"
         exit 1
     fi
+fi
+if [ -z $(docker buildx version | awk 'NR==1{print $1}') ]; then
+    echo -e "##\n##\e[31;3m ERROR: buildx required for image build\e[0m\n##"
+    exit 1
 fi
 
 # Print configuration details before build
@@ -70,7 +69,7 @@ clear
 echo -e "## \e[1;3;4mTeedy Multi-architecture Docker Build Script\e[0m\n##"
 echo -e "## \e[1mImage Name:\e[0m ${IMAGE_NAME}\n##"
 echo -e "## \e[1mArchitectures to build:\e[0m"
-for arch in ${DOCKER_ARCHS[@]}; do
+for arch in ${TARGETARCHS[@]}; do
     echo -e "##\t- ${arch}"
 done
 echo -e "##\n## \e[1mTags to generate:\e[0m"
@@ -78,7 +77,6 @@ for tag in ${BUILD_TAGS[@]}; do
     echo -e "##\t- ${tag}"
 done
 echo -e "##\n## \e[1mPush Builds:\e[0m ${PUSH_BUILDS}"
-echo -e "## \e[1mPush Manifests:\e[0m ${CREATE_MANIFESTS}"
 echo -e "##\n## \e[31;3mVerify the above is correct. If not then press Ctrl-C now and update the script.\e[0m"
 echo "##"
 PAUSE=5
@@ -87,64 +85,32 @@ for (( i=${PAUSE}; i>=1; i--)) do
     sleep 1
 done
 
-# Enable multiarch build support locally
-echo -e "##\n## Enabling multiarch build support for Docker\n##"
-docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+if [ ${CREATE_BUILDER} == 'true' ]; then
+    # Enable multiarch build support locally
+    echo -e "##\n## Enabling multiarch build support for Docker\n##"
+    docker run --rm --privileged docker/binfmt:a7996909642ee92942dcd6cff44b9b95f08dad64
+
+    # Configure Buildx builder
+    echo -e "##\n## Configuring Buildx builder for build\n##"
+    docker buildx rm xbuilder
+    docker buildx create --name xbuilder
+    docker buildx use xbuilder
+    docker buildx inspect --bootstrap
+fi
 
 # Build the requested images
 echo -e "##\n## Starting Docker build\n##"
-for arch in ${DOCKER_ARCHS[@]}; do
-    # Correlate Docker and CPU architectures for build args
-    echo -e "##\n## Now building ${IMAGE_NAME} for ${arch}\n##"
-    for index in "${!DOCKER_ARCHS[@]}"; do
-        [[ "${DOCKER_ARCHS[$index]}" = "${arch}" ]] && break
-    done
-    cpu_arch="${CPU_ARCHS[index]}"
 
-    # Build and push image
-    ALL_TAGS=''
-    for tag in ${BUILD_TAGS[@]}; do
-        ALL_TAGS+='-t '${IMAGE_NAME}:${tag}-${arch}' '
-    done
-    docker build -f Dockerfile --build-arg DOCKER_ARCHITECTURE=${arch} --build-arg CPU_ARCHITECTURE=${cpu_arch} ${ALL_TAGS} . --no-cache
-    docker rmi $(docker images -q -f dangling=true)
-    if [ ${PUSH_BUILDS} == 'true' ]; then
-        for tag in ${BUILD_TAGS[@]}; do 
-            docker push ${IMAGE_NAME}:${tag}-${arch}
-        done
-    fi
+# Build and push image
+ALL_TAGS=''
+for tag in ${BUILD_TAGS[@]}; do
+    ALL_TAGS+='-t '${IMAGE_NAME}:${tag}' '
 done
-
-# Generate multi-arch manifests based on requested versions
-if [ ${CREATE_MANIFESTS} == 'true' ]; then
-    if [ ${PUSH_BUILDS} != 'true' ]; then
-        echo -e "##\n## Create manifest is true, but images were not pushed\n##"
-        exit 1
-    else
-        echo -e "##\n## Generating Docker manifests\n##"
-        for version in ${BUILD_TAGS[@]}; do
-            ALL_TAGS=''
-            for arch in ${DOCKER_ARCHS[@]}; do
-                ALL_TAGS+=${IMAGE_NAME}:${version}-${arch}' '
-            done
-
-            # Check if manifest already exists. Remove if it does to prevent failed update
-            if [ -d ~/.docker/manifests/docker.io_${IMAGE_NAME/'/'/'_'}-${version} ]; then
-                rm -r ~/.docker/manifests/docker.io_${IMAGE_NAME/'/'/'_'}-${version}
-            fi
-            docker manifest create ${IMAGE_NAME}:${version} $ALL_TAGS
-            # Update manifest to specify architectures for arm builds
-            for arch in ${DOCKER_ARCHS[@]}; do
-                if [ ${arch} == 'arm32v7' ]; then
-                    docker manifest annotate ${IMAGE_NAME}:${version} ${IMAGE_NAME}:${version}-${arch} --os linux --arch arm
-                elif [ ${arch} == 'arm64v8' ]; then
-                    docker manifest annotate ${IMAGE_NAME}:${version} ${IMAGE_NAME}:${version}-${arch} --os linux --arch arm64 --variant armv8
-                fi
-            done
-            # Push manifest then remove local manifest to prevent future collisions
-            docker manifest push ${IMAGE_NAME}:${version}
-            rm -r ~/.docker/manifests/docker.io_${IMAGE_NAME/'/'/'_'}-${version}
-        done
-    fi
+if [ ${PUSH_BUILDS} == "true" ]; then
+    docker buildx build -f Dockerfile --platform=$(IFS=$','; echo "${TARGETARCHS[*]}") --push ${ALL_TAGS} . --no-cache
+else 
+    docker buildx build -f Dockerfile --platform=${TARGETARCHS[0]} --load ${ALL_TAGS} . --no-cache
 fi
+docker rmi $(docker images -q -f dangling=true)
+
 echo -e "##\n## Complete!\n##"
