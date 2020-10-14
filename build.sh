@@ -1,9 +1,9 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 # Image Configurations
 IMAGE_NAME="jdreinhardt/teedy"
 LATEST_TAG="latest"
-VERS_TAG="1.8"
+VERS_TAG="1.9"
 DATE_TAG=$(date +%Y%m%d)
 
 # Enables multi-arch build support in buildx with a builder named xbuilder
@@ -11,7 +11,7 @@ DATE_TAG=$(date +%Y%m%d)
 CREATE_BUILDER='false'
 
 BUILD_LATEST='true'
-BUILD_VERS='false'
+BUILD_VERS='true'
 BUILD_DATE='true'
 PUSH_BUILDS='true'
 
@@ -88,7 +88,7 @@ done
 if [ ${CREATE_BUILDER} == 'true' ]; then
     # Enable multiarch build support locally
     echo -e "##\n## Enabling multiarch build support for Docker\n##"
-    docker run --rm --privileged docker/binfmt:a7996909642ee92942dcd6cff44b9b95f08dad64
+    docker run --rm --privileged linuxkit/binfmt:v0.8
 
     # Configure Buildx builder
     echo -e "##\n## Configuring Buildx builder for build\n##"

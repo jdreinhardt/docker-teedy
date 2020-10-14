@@ -2,7 +2,7 @@
 
 ARG DOCKER_ARCHITECTURE
 
-FROM ubuntu:18.04 AS builder
+FROM ubuntu:20.04 AS builder
 
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && apt-get install -y -q \
@@ -67,7 +67,7 @@ RUN tar -xJf ffmpeg.tar.xz -C /tmp --strip-components=1
 RUN cp "/tmp/ffmpeg" /usr/local/bin
 
 # Assemble the pieces for the final image
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 
 # Bring the Jetty folder over from the app builder
 # and the static build of ffmpeg
@@ -102,7 +102,8 @@ RUN apt-get update && apt-get install -y -q \
     tesseract-ocr-hun \
     tesseract-ocr-fin \
     tesseract-ocr-swe \
-    tesseract-ocr-lav && \
+    tesseract-ocr-lav \
+    tesseract-ocr-dan && \
     apt-get clean && \
     apt-get autoremove -y -q && \
     rm -rf /var/lib/apt/lists/* && \
