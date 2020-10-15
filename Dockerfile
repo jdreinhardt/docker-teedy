@@ -2,10 +2,12 @@
 
 ARG DOCKER_ARCHITECTURE
 
-FROM ubuntu:20.04 AS builder
+FROM ubuntu:18.04 AS builder
 
 ENV DEBIAN_FRONTEND noninteractive
-RUN apt-get update && apt-get install -y -q \
+RUN apt-get update && apt-get install -y -q curl
+RUN curl -sL https://deb.nodesource.com/setup_10.x | bash && \
+    apt-get install -y -q \
     apt-transport-https \
     ca-certificates \
     software-properties-common \
@@ -19,8 +21,7 @@ RUN apt-get update && apt-get install -y -q \
     openjdk-11-jdk \
     less \
     procps \
-    npm \
-    grunt
+    nodejs
 
 # Configure settings
 ENV LANG C.UTF-8
@@ -54,6 +55,7 @@ RUN rm -f /opt/jetty/lib/mail/javax.mail.glassfish-*.jar && \
     git clone https://github.com/sismics/docs.git /tmp/docs && \
     cp /tmp/docs/docs.xml /opt/jetty/webapps/docs.xml
 WORKDIR /tmp/docs
+RUN npm install -g grunt-cli
 RUN mvn -Pprod -DskipTests clean install && \
     cp docs-web/target/docs-web-*.war /opt/jetty/webapps/docs.war
 
@@ -67,7 +69,7 @@ RUN tar -xJf ffmpeg.tar.xz -C /tmp --strip-components=1
 RUN cp "/tmp/ffmpeg" /usr/local/bin
 
 # Assemble the pieces for the final image
-FROM ubuntu:20.04
+FROM ubuntu:18.04
 
 # Bring the Jetty folder over from the app builder
 # and the static build of ffmpeg
