@@ -17,25 +17,38 @@ Currently supported architectures are
 
 This list is not exhaustive and more can easily be added at the top of the script, or built manually. 
 
-The `Dockerfile` uses a builder image to reduce the overall size of the image while also building Teedy directly from source ensure the images stay up-to-date with the source project. 
+The `Dockerfile` uses a builder image to reduce the overall size of the image while also building Teedy directly from source ensure the images stay up-to-date with the source project. Current image sizes are approximately half the size of the official images. 
 
 ### Build Pattern
 
 The `build.sh` script is the easiest way to build images yourself. For manual builds you will need to enable buildx on your system. Once you enable buildx you will need to also run the following:
- - `docker run --rm --privileged docker/binfmt:a7996909642ee92942dcd6cff44b9b95f08dad64` (This is only required if you want to build for architectures other than your build system)
+ - `docker run --rm --privileged linuxkit/binfmt:v0.8` (This is only required if you want to build for architectures other than your build system)
  - `docker buildx create --name xbuilder`
  - `docker buildx use xbuilder`
  - `docker buildx inspect --bootstrap`
 
 After running these commands you will have a new buildx builder running. You can use `docker buildx ls` to view all builders and their supported architectures.
 
-No build arguments are required. An example build command would be `docker buildx build -f Dockerfile --platform=linux/arm/v7,linux/amd64,linux/arm64 --push -t jdreinhardt/teedy:latest .`
+One build argument is required: `TEEDY_BRANCH` which is used to specify the Git branch to use for the build. An example build command would be `docker buildx build -f Dockerfile --build-arg TEEDY_BRANCH=master --platform=linux/arm/v7,linux/amd64,linux/arm64 --push -t jdreinhardt/teedy:latest .`
 
 ### Usage Pattern
 
 The following parameters are available 
  - `-e JAVA_OPTIONS` customize the Java Options (default: -Xmx512m)
+ - `-e OCR_LANGS` *(>= 1.10)* add additional OCR language support. Only English by default
  - `-p 8080` web interface internal port
  - `-v /data` Teedy data location
 
-Example run command `docker run -e JAVA_OPTIONS=-Xmx1024m -p 80:8080 -v /mnt/teedy:/data jdreinhardt/teedy:latest`
+#### Supported OCR Languages
+
+Specifying additional languages is only supported started with version 1.10. Version 1.9 and earlier include all languages by default. 
+
+`ara`, `chi-sim`, `chi-tra`, `dan`, `deu`, `fin`, `fra`, `heb`, `hin`, `hun`, `ita`, `jpn`, `jpn`, `kor`, `lav`, `nld`, `nor`, `pol`, `por`, `rus`, `spa`, `swe`, `tha`, `tur`, `ukr`
+
+Multiple languages can be added by comma separating them.
+
+### Examples
+
+Basic: `docker run -p 80:8080 -v /mnt/teedy:/data jdreinhardt/teedy:latest`
+
+Advanced: `docker run -e JAVA_OPTIONS=-Xmx1024m -e OCR_LANGS=spa,fra -p 80:8080 -v /mnt/teedy:/data jdreinhardt/teedy:latest`

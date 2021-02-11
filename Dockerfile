@@ -1,8 +1,7 @@
-# Comments...
-
-ARG DOCKER_ARCHITECTURE
-
+# Build the Teedy from source
 FROM ubuntu:18.04 AS builder
+
+ARG TEEDY_BRANCH
 
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && apt-get install -y -q curl
@@ -33,7 +32,7 @@ RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
 ENV JAVA_OPTS -Duser.timezone=UTC -Dfile.encoding=UTF-8 -Xmx1024m
 
 # Download and configure Jetty
-ENV JETTY_VERSION 9.4.12.v20180830
+ENV JETTY_VERSION 9.4.36.v20210114
 RUN wget -nv -O /tmp/jetty.tar.gz \
     "https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-distribution/${JETTY_VERSION}/jetty-distribution-${JETTY_VERSION}.tar.gz" \
     && tar xzf /tmp/jetty.tar.gz -C /opt \
@@ -52,7 +51,7 @@ ENV JAVA_OPTIONS -Xmx512m
 
 # Remove the embedded javax.mail jar from Jetty and get files from sismics/docs then build
 RUN rm -f /opt/jetty/lib/mail/javax.mail.glassfish-*.jar && \
-    git clone https://github.com/sismics/docs.git /tmp/docs && \
+    git clone -b ${TEEDY_BRANCH} https://github.com/sismics/docs.git /tmp/docs && \
     cp /tmp/docs/docs.xml /opt/jetty/webapps/docs.xml
 WORKDIR /tmp/docs
 RUN npm install -g grunt-cli
@@ -64,7 +63,9 @@ RUN mvn -Pprod -DskipTests clean install && \
 # Licensed under GPL v3
 ARG TARGETARCH
 WORKDIR /tmp
-RUN if [ ${TARGETARCH} = arm ]; then wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-armhf-static.tar.xz; else wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-${TARGETARCH}-static.tar.xz; fi
+RUN if [ ${TARGETARCH} = arm ]; then \
+    wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-armhf-static.tar.xz; \
+    else wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-${TARGETARCH}-static.tar.xz; fi
 RUN tar -xJf ffmpeg.tar.xz -C /tmp --strip-components=1
 RUN cp "/tmp/ffmpeg" /usr/local/bin
 
@@ -75,37 +76,15 @@ FROM ubuntu:18.04
 # and the static build of ffmpeg
 COPY --from=builder /opt/jetty* /opt/jetty/
 COPY --from=builder /usr/local/bin/ffmpeg /usr/local/bin/
+COPY startup.sh /
 
 # Install dependencies
-RUN apt-get update && apt-get install -y -q \
-    openjdk-8-jre-headless \
+RUN chmod +x /startup.sh && \
+    apt-get update && apt-get install -y -q \
+    openjdk-11-jre-headless \
     unzip \
     mediainfo \
-    tesseract-ocr \
-    tesseract-ocr-fra \
-    tesseract-ocr-ita \
-    tesseract-ocr-kor \
-    tesseract-ocr-rus \
-    tesseract-ocr-ukr \
-    tesseract-ocr-spa \
-    tesseract-ocr-ara \
-    tesseract-ocr-hin \
-    tesseract-ocr-deu \
-    tesseract-ocr-pol \
-    tesseract-ocr-jpn \
-    tesseract-ocr-por \
-    tesseract-ocr-tha \
-    tesseract-ocr-jpn \
-    tesseract-ocr-chi-sim \
-    tesseract-ocr-chi-tra \
-    tesseract-ocr-nld \
-    tesseract-ocr-tur \
-    tesseract-ocr-heb \
-    tesseract-ocr-hun \
-    tesseract-ocr-fin \
-    tesseract-ocr-swe \
-    tesseract-ocr-lav \
-    tesseract-ocr-dan && \
+    tesseract-ocr && \
     apt-get clean && \
     apt-get autoremove -y -q && \
     rm -rf /var/lib/apt/lists/* && \
@@ -117,4 +96,4 @@ ENV JAVA_OPTIONS -Xmx512m
 WORKDIR /opt/jetty
 VOLUME /data
 EXPOSE 8080
-CMD ["bin/jetty.sh", "run"]
+CMD /startup.sh ${OCR_LANGS}

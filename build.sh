@@ -3,8 +3,11 @@
 # Image Configurations
 IMAGE_NAME="jdreinhardt/teedy"
 LATEST_TAG="latest"
-VERS_TAG="1.9"
+VERS_TAG="1.10"
 DATE_TAG=$(date +%Y%m%d)
+
+# Teedy Branch
+TEEDY_BRANCH="master"
 
 # Enables multi-arch build support in buildx with a builder named xbuilder
 # Set to false if xbuilder already exists with required arch support
@@ -21,11 +24,13 @@ PUSH_BUILDS='true'
 # - linux/arm/v7
 # - linux/arm64
 # Coming eventually. (these will require a different source for ffmpeg)
-# - linux/arm/v6
-# - linux/ppc64le
+# - linux/ppc64le 
 # - linux/s390x
+# Not likely. Base Ubuntu image doesn't support these architectures
+# - linux/arm/v6
 # - linux/riscv64
 TARGETARCHS=(linux/amd64 linux/arm/v7 linux/arm64)
+#TARGETARCHS=(linux/arm/v7)
 
 BUILD_TAGS=()
 
@@ -107,9 +112,9 @@ for tag in ${BUILD_TAGS[@]}; do
     ALL_TAGS+='-t '${IMAGE_NAME}:${tag}' '
 done
 if [ ${PUSH_BUILDS} == "true" ]; then
-    docker buildx build -f Dockerfile --platform=$(IFS=$','; echo "${TARGETARCHS[*]}") --push ${ALL_TAGS} . --no-cache
+    docker buildx build -f Dockerfile --build-arg TEEDY_BRANCH=${TEEDY_BRANCH} --platform=$(IFS=$','; echo "${TARGETARCHS[*]}") --push ${ALL_TAGS} .
 else 
-    docker buildx build -f Dockerfile --platform=${TARGETARCHS[0]} --load ${ALL_TAGS} . --no-cache
+    docker buildx build -f Dockerfile --build-arg TEEDY_BRANCH=${TEEDY_BRANCH} --platform=${TARGETARCHS[0]} --load ${ALL_TAGS} .
 fi
 docker rmi $(docker images -q -f dangling=true)
 
